@@ -4,6 +4,13 @@
 
 (in-package :l-shell)
 
+;; Flags
+(defconstant __ "..")
+(defconstant ~/ "~/")
+(defconstant -s :search)
+(defconstant -p :path)
+
+;; Deal with clunky logical pathing
 (defun get-real-path (&optional (path nil))
   (uiop:truenamize
    (cond
@@ -16,6 +23,7 @@
      (t
       (format nil "~{~^/~a~}" (append (rest (pathname-directory (uiop:getcwd))) (list path)))))))
 
+;; Just the name with the extension
 (defun full-filename (file)
   (concatenate 'string
                (pathname-name file)
@@ -23,7 +31,7 @@
                    ".")
                (pathname-type file)))
 
-
+;; Run bash (returns the value as a string dump)
 (defun b (program) (uiop:run-program program :output :string))
 
 (defun cd (&optional (path "~/")) (uiop:chdir (get-real-path path)))
@@ -51,7 +59,7 @@
       (if (uiop:directory-exists-p (get-real-path path))
           (uiop:delete-directory-tree (get-real-path path) :validate t))))
 
-(defun ls (&optional (path nil) &key (search ""))
+(defun ls (&key (path nil) (search ""))
   (format nil "::FILES::~%~{~a~^~%~}~%~%::DIRECTORIES::~%~{~a~^~%~}~%"
           ;; files
           (mapcar #'full-filename
@@ -112,7 +120,11 @@
   (format t "Welcome to hell.~%~%")
   (setf *running* t)
   (loop :while *running* :do 
-    (format t "~{~A~^/~}> " (nthcdr 2 (pathname-directory (uiop:getcwd))))
+        (format t "#~{~A~^/~}> "
+                (let ((cwd (rest (pathname-directory (get-real-path)))))
+                  (if (> (length cwd) 4)
+                      (reverse (subseq (reverse cwd) 0 4))
+                      cwd)))
     (finish-output)
     (handler-case
         (progn
