@@ -101,14 +101,14 @@
 
       ;; If it's a file but the user provided a directory to
       ((string= (subseq (reverse (namestring to)) 0 1) "/")
-       (touch (concatenate 'string (namestring to) (full-filename from))))
+       (copy-file from (concatenate 'string (namestring to) (full-filename from))))
       ;; Both are files
       (t
-       (touch (namestring to))))))
+       (copy-file from (namestring to))))))
 
 (defun repl ()
   (loop :do
     (format t "~{~A~^/~}> " (nthcdr 2 (pathname-directory (uiop:getcwd))))
-    (handler-case (format t "~a~%" (eval (read)))
+    (handler-case (format t "~a~%" (eval (read-line)))
       (error (c)
         (format t "~a~%" c)))))
