@@ -114,8 +114,11 @@
   (loop :while *running* :do 
     (format t "~{~A~^/~}> " (nthcdr 2 (pathname-directory (uiop:getcwd))))
     (finish-output)
-    (handler-case (format t "~a~%" (eval (read-from-string
-                                          (read-line))))
+    (handler-case
+        (progn
+          (format t "~a~%" (eval (read-from-string
+                                  (read-line))))
+          (finish-output))
       (sb-sys:interactive-interrupt ()
         (progn
           (format *error-output* "~%Smell ya later!.~&")
