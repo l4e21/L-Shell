@@ -19,3 +19,5 @@ Tabs work by default if you use something like inferior-shell on emacs (not test
 ### TODO
 - symlinks
 - File Writing
+- Regex searches
+- Could we possibly get integration with emacs

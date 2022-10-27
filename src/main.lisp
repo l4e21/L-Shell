@@ -57,7 +57,7 @@
           (mapcar #'full-filename
            (remove-if-not
             (lambda (file)
-              (search search (namestring file)))
+              (search search (full-filename (namestring file))))
             (uiop:directory-files (get-real-path path))))
           ;; directories
           (mapcar (lambda (dir)
@@ -66,7 +66,7 @@
                                  "/"))
            (remove-if-not
             (lambda (dir)
-              (search search (namestring dir)))
+              (search search (first (last (pathname-directory (namestring dir))))))
             (uiop:subdirectories (get-real-path path))))))
 
 (defun touch (output &key (concat nil))
