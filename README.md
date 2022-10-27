@@ -2,7 +2,7 @@
 Replace the shell with a CL REPL. Because I don't want to learn bash.
 
 ### Installation
-Either run the script with it installed via quicklisp, or run (repl)
+Either run the script with it installed via quicklisp (recommended), or in-package from a CL REPL & run `repl` 
 
 ### Currently Implemented
 - cd
@@ -14,6 +14,8 @@ Either run the script with it installed via quicklisp, or run (repl)
 - mkdir
 - Direct bash commands output to string for useage
 
+Tabs work by default if you use something like inferior-shell on emacs (not tested with others)
+
 ### TODO
-- make the script look nice from real terminals (rlwrap?)
 - symlinks
+- File Writing

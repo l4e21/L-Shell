@@ -2,7 +2,7 @@
 
 (load "~/.quicklisp/setup.lisp")
 
-(ql:quickload :l-shell)
+(ql:quickload :l-shell :silent t)
 
 (in-package :l-shell)
 
