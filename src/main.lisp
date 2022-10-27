@@ -109,6 +109,6 @@
 (defun repl ()
   (loop :do
     (format t "~{~A~^/~}> " (nthcdr 2 (pathname-directory (uiop:getcwd))))
-    (handler-case (format t "~a~%" (eval (read-line)))
+    (handler-case (format t "~a~%" (eval (read-from-string (read-line))))
       (error (c)
         (format t "~a~%" c)))))
