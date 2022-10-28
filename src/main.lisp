@@ -5,10 +5,11 @@
 (in-package :l-shell)
 
 ;; Flags
-(defconstant __ "..")
-(defconstant ~/ "~/")
-(defconstant -s :search)
-(defconstant -p :path)
+(setf __ "..")
+(setf ~/ "~/")
+(setf -s :search)
+(setf -p :path)
+(setf -r :recur)
 
 ;; Deal with clunky logical pathing
 (defun get-real-path (&optional (path nil))
@@ -23,18 +24,34 @@
      (t
       (format nil "~{~^/~a~}" (append (rest (pathname-directory (uiop:getcwd))) (list path)))))))
 
+
 ;; Just the name with the extension
-(defun full-filename (file)
+(defun filename (file)
   (concatenate 'string
                (pathname-name file)
                (if (pathname-type file)
                    ".")
                (pathname-type file)))
 
-;; Run bash (returns the value as a string dump)
-(defun b (program) (uiop:run-program program :output :string))
+(defun dirname (dir)
+  (concatenate 'string (first (last (pathname-directory dir))) "/"))
 
-(defun cd (&optional (path "~/")) (uiop:chdir (get-real-path path)))
+
+;; Run bash (returns the value as a string dump)
+(defun b (program) (uiop:run-program program
+                                     :output :string
+                                     :ignore-error-status t))
+
+(defun exec (fn &rest args) (b (format nil "~a ~{~a ~}" fn args)))
+
+(defun exec-fn (fn args) (b (format nil "~a ~{~a ~}" fn args)))
+
+(defun make (&rest args) (exec-fn "make" args))
+(defun git (&rest args) (exec-fn "git" args))
+(defun yarn (&rest args) (exec-fn "yarn" args))
+
+(defun cd (&optional (path "~/"))
+  (uiop:chdir (get-real-path path)))
 
 (defun cwd () (uiop:getcwd))
 
@@ -53,29 +70,66 @@
       (mapcar #'uiop:delete-file-if-exists
               (uiop:truenamize
                (remove-if-not (lambda (file)
-                                (search search (namestring file)))
+                                (cl-ppcre:scan search (namestring file)))
                               (uiop:directory-files (get-real-path path)))))
       ;; Be careful.
       (if (uiop:directory-exists-p (get-real-path path))
           (uiop:delete-directory-tree (get-real-path path) :validate t))))
 
-(defun ls (&key (path nil) (search ""))
-  (format nil "::FILES::~%~{~a~^~%~}~%~%::DIRECTORIES::~%~{~a~^~%~}~%"
-          ;; files
-          (mapcar #'full-filename
-           (remove-if-not
-            (lambda (file)
-              (search search (full-filename (namestring file))))
-            (uiop:directory-files (get-real-path path))))
-          ;; directories
-          (mapcar (lambda (dir)
-                    (concatenate 'string
-                                 (first (last (pathname-directory dir)))
-                                 "/"))
-           (remove-if-not
-            (lambda (dir)
-              (search search (first (last (pathname-directory (namestring dir))))))
-            (uiop:subdirectories (get-real-path path))))))
+(defclass ls ()
+  ((files
+    :initarg :files
+    :accessor files)
+   (dirs
+    :initarg :dirs
+    :accessor dirs)))
+
+(defmethod print-object ((obj ls) stream)
+  (print-unreadable-object (obj stream :type t)
+    (format stream
+               "~%::FILES::~%~{~a~^~%~}~%~%::DIRECTORIES::~%~{~a~^~%~}~%"
+               (mapcar #'filename (files obj))
+               (mapcar #'dirname (dirs obj)))))
+
+(defun ls (&key (path "") (search ""))
+  (let* ((ls-files
+          (remove-if-not
+           (lambda (file)
+             (cl-ppcre:scan search
+                     (filename (namestring file))))
+           (uiop:directory-files (get-real-path path))))
+         (ls-dirs
+          (remove-if-not
+           (lambda (dir)
+             (cl-ppcre:scan search
+                     (first (last (pathname-directory (namestring dir))))))
+           (uiop:subdirectories (get-real-path path)))))
+    (make-instance 'ls
+                   :files ls-files
+                   :dirs ls-dirs)))
+
+(defclass ff (ls) ())
+
+(defmethod print-object ((obj ff) stream)
+  (print-unreadable-object (obj stream :type t)
+    (format stream "~%::FILES::~%~{~a~^~%~}~%~%" (files obj))))
+
+(defun ff (&key
+             (path "")
+             (search "")
+             (acc (make-instance 'ff :files nil :dirs nil)))
+  (let ((result (ls :path path :search search)))
+    (reduce
+     (lambda (acc dir)
+       (ff :path (concatenate 'string path (dirname dir))
+           :search search
+           :acc acc))
+     (dirs result)
+     :initial-value (make-instance 'ff
+                                   :files (append (files acc)
+                                                  (files result))
+                                   :dirs (append (files acc)
+                                                 (dirs result))))))
 
 (defun touch (output &key (concat nil))
   (uiop:concatenate-files (mapcar #'get-real-path concat)
@@ -86,7 +140,8 @@
         (to (get-real-path output)))
     (cond
       ;; If it user provided a "/" at end of input
-      ((string= (subseq (reverse (namestring from)) 0 1) "/")
+      ((and (directory-exists-p from)
+            (string= (subseq (reverse (namestring from)) 0 1) "/"))
        (let ((to
                (if (string= "/"
                             (subseq (reverse (namestring to)) 0 1))
@@ -117,23 +172,26 @@
 ;; (defun write ())
 
 (defun repl ()
-  (format t "Welcome to hell.~%~%")
+  (format t "~%L-Shell (Alpha) V0.2.~%")
   (setf *running* t)
   (loop :while *running* :do 
         (format t "#~{~A~^/~}> "
                 (let ((cwd (rest (pathname-directory (get-real-path)))))
-                  (if (> (length cwd) 4)
-                      (reverse (subseq (reverse cwd) 0 4))
-                      cwd)))
+                  (cond
+                    ((find "jam" cwd :test #'string=)
+                     (cons "~" (cdr (cdr cwd))))
+                    (t
+                     cwd))))
     (finish-output)
     (handler-case
         (progn
-          (format t "~a~%" (eval (read-from-string
-                                  (read-line))))
+          (format t "~a~%"
+           (eval (read-from-string
+                  (read-line))))
           (finish-output))
       (sb-sys:interactive-interrupt ()
         (progn
-          (format *error-output* "~%Smell ya later!.~&")
+          (format *error-output* "~%Goodbye.~%~%")
           (setf *running* nil)))
       (error (c)
         (format t "~a~%" c)))))
