@@ -4,12 +4,33 @@
 
 (in-package :l-shell)
 
+;; We want some way to print data but for it to be directly accessible, so for ls, we return a plist. same for ff.
+(defclass pretty-plist ()
+  ((data
+    :initarg :data
+    :accessor data)
+   (print-fn
+    :initarg :print-fn
+    :accessor print-fn)))
+
+(defmethod print-object ((obj pretty-plist) stream)
+  (print-unreadable-object (obj stream :type t)
+    (funcall (print-fn obj) stream obj)))
+
+(defun make-pplist (data print-fn)
+  (make-instance 'pretty-plist
+                 :data data
+                 :print-fn print-fn))
+
+(defmethod getp ((obj pretty-plist) key)
+  (getf (data obj) key))
+
+
 ;; Flags
 (setf __ "..")
 (setf ~/ "~/")
 (setf -s :search)
 (setf -p :path)
-(setf -r :recur)
 
 ;; Deal with clunky logical pathing
 (defun get-real-path (&optional (path nil))
@@ -76,60 +97,56 @@
       (if (uiop:directory-exists-p (get-real-path path))
           (uiop:delete-directory-tree (get-real-path path) :validate t))))
 
-(defclass ls ()
-  ((files
-    :initarg :files
-    :accessor files)
-   (dirs
-    :initarg :dirs
-    :accessor dirs)))
-
-(defmethod print-object ((obj ls) stream)
-  (print-unreadable-object (obj stream :type t)
-    (format stream
-               "~%::FILES::~%~{~a~^~%~}~%~%::DIRECTORIES::~%~{~a~^~%~}~%"
-               (mapcar #'filename (files obj))
-               (mapcar #'dirname (dirs obj)))))
-
 (defun ls (&key (path "") (search ""))
   (let* ((ls-files
-          (remove-if-not
-           (lambda (file)
-             (cl-ppcre:scan search
-                     (filename (namestring file))))
-           (uiop:directory-files (get-real-path path))))
+           (remove-if-not
+            (lambda (file)
+              (cl-ppcre:scan search
+                             (filename (namestring file))))
+            (uiop:directory-files (get-real-path path))))
          (ls-dirs
-          (remove-if-not
-           (lambda (dir)
-             (cl-ppcre:scan search
-                     (first (last (pathname-directory (namestring dir))))))
-           (uiop:subdirectories (get-real-path path)))))
-    (make-instance 'ls
-                   :files ls-files
-                   :dirs ls-dirs)))
+           (remove-if-not
+            (lambda (dir)
+              (cl-ppcre:scan search
+                             (first (last (pathname-directory (namestring dir))))))
+            (uiop:subdirectories (get-real-path path)))))
+    (make-pplist (list
+                  :files ls-files
+                  :dirs ls-dirs)
+                 (lambda (stream obj)
+                   (format stream "~%::FILES::~%~{~a~^~%~}~%~%::DIRECTORIES::~%~{~a~^~%~}~%" (mapcar #'filename (getp obj :files))
+                           (mapcar #'dirname (getp obj :dirs)))))))
 
-(defclass ff (ls) ())
-
-(defmethod print-object ((obj ff) stream)
-  (print-unreadable-object (obj stream :type t)
-    (format stream "~%::FILES::~%~{~a~^~%~}~%~%" (files obj))))
 
 (defun ff (&key
              (path "")
              (search "")
-             (acc (make-instance 'ff :files nil :dirs nil)))
-  (let ((result (ls :path path :search search)))
+             (acc (make-pplist
+                   (list :files nil :dirs nil)
+                   (lambda (stream obj)
+                     (format stream "~%::FILES::~%~{~a~^~%~}~%~%" (getp obj :files))))))
+  (let ((ls-files
+          (remove-if-not
+           (lambda (file)
+             (cl-ppcre:scan search
+                            (filename (namestring file))))
+           (uiop:directory-files (get-real-path path))))
+        (ls-dirs (uiop:subdirectories (get-real-path path))))
     (reduce
      (lambda (acc dir)
-       (ff :path (concatenate 'string path (dirname dir))
+       (ff :path (concatenate 'string path
+                              (if (char= #\/ (first (last (coerce path 'list)))) "" "/")
+                              (dirname dir))
            :search search
            :acc acc))
-     (dirs result)
-     :initial-value (make-instance 'ff
-                                   :files (append (files acc)
-                                                  (files result))
-                                   :dirs (append (files acc)
-                                                 (dirs result))))))
+     ls-dirs
+     :initial-value (make-pplist (list
+                                  :files (append (getp acc :files)
+                                                 ls-files)
+                                  :dirs (append (getp acc :dirs)
+                                                ls-dirs))
+                                 (lambda (stream obj)
+                                   (format stream "~%::FILES::~%~{~a~^~%~}~%~%" (getp obj :files)))))))
 
 (defun touch (output &key (concat nil))
   (uiop:concatenate-files (mapcar #'get-real-path concat)
