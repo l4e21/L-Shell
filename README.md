@@ -20,7 +20,4 @@ Paredit mode works beautifully
 - Reflexive flags
 
 ### TODO
-- File Writing
-- Regex searches
 - Could we possibly get integration with emacs directory management
-- Input History
