@@ -4,7 +4,20 @@
 
 (in-package :l-shell)
 
+(defun random-of (xs)
+  (nth (random (length xs)) xs))
+
+(setf *welcomes*
+      '("Welcome to L-Shell (Alpha) v0.2"
+        "Have a spooky halloween!"
+        "Remember that you love your job"
+        "Here we go again"
+        "Get LISPing already"
+        ":D :D :D :D :D :D :D :D :D :D :D :D"
+        "The path is difficult. Here, take this REPL!"))
+
 ;; We want some way to print data but for it to be directly accessible, so for ls, we return a plist. same for ff.
+
 (defclass pretty-plist ()
   ((data
     :initarg :data
@@ -190,8 +203,9 @@
 ;; (defun write ())
 
 (defun repl ()
-  (format t "~%L-Shell (Alpha) V0.2.~%")
+  (setf *random-state* (make-random-state t))
   (setf *running* t)
+  (format t "~%~a~%" (random-of *welcomes*))
   (loop :while *running* :do 
         (format t "#~{~A~^/~}> "
                 (let ((cwd (rest (pathname-directory (get-real-path)))))
@@ -200,16 +214,16 @@
                      (cons "~" (cdr (cdr cwd))))
                     (t
                      cwd))))
-    (finish-output)
-    (handler-case
-        (progn
-          (format t "~a~%"
-           (eval (read-from-string
-                  (read-line))))
-          (finish-output))
-      (sb-sys:interactive-interrupt ()
-        (progn
-          (format *error-output* "~%Goodbye.~%~%")
-          (setf *running* nil)))
-      (error (c)
-        (format t "~a~%" c)))))
+        (finish-output)
+        (handler-case
+            (progn
+              (format t "~a~%"
+                      (eval (read-from-string
+                             (read-line))))
+              (finish-output))
+          (sb-sys:interactive-interrupt ()
+            (progn
+              (format *error-output* "~%Goodbye.~%~%")
+              (setf *running* nil)))
+          (error (c)
+            (format t "~a~%" c)))))
