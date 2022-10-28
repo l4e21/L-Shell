@@ -135,7 +135,8 @@
     (reduce
      (lambda (acc dir)
        (ff :path (concatenate 'string path
-                              (if (char= #\/ (first (last (coerce path 'list)))) "" "/")
+                              (if (and (coerce path 'list)
+                                       (char= #\/ (first (last (coerce path 'list))))) "" "/")
                               (dirname dir))
            :search search
            :acc acc))
